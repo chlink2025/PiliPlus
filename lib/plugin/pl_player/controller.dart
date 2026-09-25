@@ -150,6 +150,19 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   Timer? _timer;
   StreamSubscription? _subForSeek;
 
+  final RxBool resumeTipVisible = false.obs;
+  final RxString resumeTipText = ''.obs;
+  Timer? _resumeTipTimer;
+
+  void showResumeTip(String text) {
+    resumeTipText.value = text;
+    resumeTipVisible.value = true;
+    _resumeTipTimer?.cancel();
+    _resumeTipTimer = Timer(const Duration(seconds: 3), () {
+      resumeTipVisible.value = false;
+    });
+  }
+
   Box setting = GStorage.setting;
 
   // final Durations durations;
@@ -1564,6 +1577,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
       AndroidHelper$ToDart.onUserLeaveHint = null;
     }
     _timer?.cancel();
+    _resumeTipTimer?.cancel();
     // _position.close();
     // _playerEventSubs?.cancel();
     // _sliderPosition.close();

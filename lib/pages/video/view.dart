@@ -46,6 +46,7 @@ import 'package:PiliPlus/pages/video/view_point/view.dart';
 import 'package:PiliPlus/pages/video/widgets/header_control.dart';
 import 'package:PiliPlus/pages/video/widgets/intro_layout.dart';
 import 'package:PiliPlus/pages/video/widgets/player_focus.dart';
+import 'package:PiliPlus/pages/video/widgets/stein_timeline_bar.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/fullscreen_mode.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
@@ -1598,6 +1599,35 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
               }
             }
             return const SizedBox.shrink();
+          },
+        ),
+        Obx(
+          () {
+            if (!videoDetailController.showSteinBar.value) {
+              return const SizedBox.shrink();
+            }
+            final timeline = videoDetailController.steinTimeline;
+            if (timeline.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 12,
+                  right: 12,
+                  bottom: plPlayerController?.showControls.value == true
+                      ? 75
+                      : 16,
+                ),
+                child: SteinTimelineBar(
+                  timeline: timeline.toList(),
+                  currentEdgeId: videoDetailController.currentEdgeId,
+                  onJump: videoDetailController.jumpToStory,
+                  onRestart: videoDetailController.restartStein,
+                ),
+              ),
+            );
           },
         ),
       ],

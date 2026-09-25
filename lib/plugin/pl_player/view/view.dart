@@ -885,12 +885,14 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                 width: widgetWidth,
                 height: 30,
                 tooltip: '互动回溯',
-                icon: const Icon(
+                icon: Icon(
                   Icons.history,
                   size: 22,
-                  color: Colors.white,
+                  color: videoDetailController.showSteinBar.value
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.white,
                 ),
-                onTap: () => videoDetailController.showSteinSession(context),
+                onTap: videoDetailController.toggleSteinBar,
               )
             : const SizedBox.shrink(),
       ),
@@ -1601,6 +1603,44 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                         ),
                       ),
                     ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        /// 续播定位提示
+        Obx(
+          () => IgnorePointer(
+            ignoring: true,
+            child: Align(
+              alignment: Alignment.bottomLeft,
+              child: AnimatedOpacity(
+                curve: Curves.easeInOut,
+                opacity: plPlayerController.resumeTipVisible.value ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 150),
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: 16,
+                    bottom: plPlayerController.showControls.value ? 75 : 16,
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
+                    decoration: const BoxDecoration(
+                      color: Color(0x88000000),
+                      borderRadius: BorderRadius.all(Radius.circular(64)),
+                    ),
+                    child: Text(
+                      plPlayerController.resumeTipText.value,
+                      style: const TextStyle(
+                        fontSize: 13.0,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                 ),
               ),

@@ -24,4 +24,14 @@ class Story extends BaseEpisodeItem {
     isCurrent: json['is_current'] as int?,
     startPos: json['start_pos'] as int?,
   );
+
+  Map<String, dynamic> toJson() => {
+    'edge_id': id,
+    'cid': cid,
+    'title': title,
+    'cover': cover,
+    'cursor': cursor,
+    'is_current': isCurrent,
+    'start_pos': startPos,
+  };
 }

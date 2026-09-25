@@ -36,7 +36,7 @@ import 'package:PiliPlus/models_new/video/video_detail/page.dart';
 import 'package:PiliPlus/models_new/video/video_pbp/data.dart';
 import 'package:PiliPlus/models_new/video/video_play_info/subtitle.dart';
 import 'package:PiliPlus/models_new/video/video_stein_edgeinfo/data.dart';
-import 'package:PiliPlus/models_new/video/video_stein_edgeinfo/session.dart';
+import 'package:PiliPlus/models_new/video/video_stein_edgeinfo/story.dart';
 import 'package:PiliPlus/pages/audio/view.dart';
 import 'package:PiliPlus/pages/common/publish/publish_route.dart';
 import 'package:PiliPlus/pages/search/widgets/search_text.dart';
@@ -759,7 +759,7 @@ class VideoDetailController extends GetxController
         setSubtitle(vttSubtitlesIndex.value);
         if (_resumeDuration case final resume?) {
           _resumeDuration = null;
-          SmartDialog.showToast(
+          plPlayerController.showResumeTip(
             '已定位到 ${DurationUtils.formatDuration(resume.inSeconds)}',
           );
         }
@@ -878,18 +878,23 @@ class VideoDetailController extends GetxController
 
       if (!fromReset) {
         final progress = args.remove('progress');
-        if (progress != null) {
+        final steinSeek = _steinSeek;
+        _steinSeek = null;
+        if (steinSeek != null) {
+          defaultST = steinSeek;
+        } else if (progress != null) {
           defaultST = Duration(milliseconds: progress);
         } else {
           defaultST = Duration(milliseconds: data.lastPlayTime);
         }
         final timeLength = data.timeLength;
-        if (timeLength != null &&
+        if (steinSeek == null &&
+            timeLength != null &&
             defaultST! > Duration.zero &&
             timeLength - defaultST!.inMilliseconds <= 1000) {
           defaultST = Duration.zero;
         }
-        if (defaultST! > Duration.zero) {
+        if (steinSeek == null && defaultST! > Duration.zero) {
           _resumeDuration = defaultST;
         }
       }
@@ -1098,8 +1103,12 @@ class VideoDetailController extends GetxController
   EdgeInfoData? steinEdgeInfo;
   late final RxBool showSteinEdgeInfo = false.obs;
   bool _steinInitialized = false;
-  final RxList<SteinNode> steinSession = <SteinNode>[].obs;
+  final RxList<Story> steinSession = <Story>[].obs;
+  final RxList<Story> steinTimeline = <Story>[].obs;
   final RxBool showSteinBack = false.obs;
+  final RxBool showSteinBar = false.obs;
+  int? currentEdgeId;
+  Duration? _steinSeek;
 
   Future<void> getSteinEdgeInfo([int? edgeId, int? cursor]) async {
     steinEdgeInfo = null;
@@ -1134,6 +1143,20 @@ class VideoDetailController extends GetxController
 
   String _steinSessionKey() => 'bpx_interaction_$bvid';
 
+  void _refreshSteinTimeline() {
+    final list = steinEdgeInfo?.storyList;
+    if (list != null && list.isNotEmpty) {
+      steinTimeline.assignAll(list);
+    } else {
+      steinTimeline.assignAll(steinSession);
+    }
+    currentEdgeId = steinEdgeInfo?.edgeId;
+    showSteinBack.value =
+        graphVersion != null &&
+        steinEdgeInfo?.noBacktracking != 1 &&
+        steinTimeline.isNotEmpty;
+  }
+
   void _loadSteinSession() {
     steinSession.clear();
     try {
@@ -1145,16 +1168,14 @@ class VideoDetailController extends GetxController
           if (list is List) {
             for (final e in list) {
               if (e is Map) {
-                steinSession.add(
-                  SteinNode.fromJson(Map<String, dynamic>.from(e)),
-                );
+                steinSession.add(Story.fromJson(Map<String, dynamic>.from(e)));
               }
             }
           }
         }
       }
     } catch (_) {}
-    showSteinBack.value = graphVersion != null;
+    _refreshSteinTimeline();
   }
 
   void _saveSteinSession() {
@@ -1170,96 +1191,46 @@ class VideoDetailController extends GetxController
   }
 
   void _recordSteinNode(EdgeInfoData info, int? edgeId, int? cursor) {
-    showSteinBack.value = info.noBacktracking != 1;
     final nodeId = info.edgeId ?? edgeId;
     final nodeCid = cid.value;
-    if (nodeId == null || nodeCid == 0) return;
-    if (steinSession.any((e) => e.edgeId == nodeId)) {
-      return;
+    if (nodeId != null &&
+        nodeCid != 0 &&
+        !steinSession.any((e) => e.id == nodeId)) {
+      steinSession.add(
+        Story(id: nodeId, cid: nodeCid, title: info.title, cursor: cursor),
+      );
+      if (steinSession.length > 50) {
+        steinSession.removeAt(0);
+      }
+      _saveSteinSession();
     }
-    steinSession.add(
-      SteinNode(
-        edgeId: nodeId,
-        cid: nodeCid,
-        title: info.title,
-        cursor: cursor,
-      ),
-    );
-    if (steinSession.length > 50) {
-      steinSession.removeAt(0);
-    }
-    _saveSteinSession();
+    _refreshSteinTimeline();
   }
 
-  Future<void> jumpToSteinNode(SteinNode node) async {
-    final targetCid = node.cid;
+  Future<void> jumpToStory(Story story) async {
+    showSteinBar.value = false;
+    final targetCid = story.cid;
     if (targetCid != null && targetCid != cid.value) {
+      _steinSeek = Duration(milliseconds: story.startPos ?? 0);
       try {
         final introCtr = Get.find<UgcIntroController>(tag: heroTag);
         await introCtr.onChangeEpisode(Part(cid: targetCid), isStein: true);
       } catch (_) {}
+    } else if ((story.startPos ?? 0) > 0) {
+      plPlayerController.seekTo(Duration(milliseconds: story.startPos!));
     }
-    getSteinEdgeInfo(node.edgeId, node.cursor);
+    getSteinEdgeInfo(story.id, story.cursor);
   }
 
   void restartStein() {
-    if (steinSession.isEmpty) return;
-    jumpToSteinNode(steinSession.first);
+    if (steinTimeline.isNotEmpty) {
+      jumpToStory(steinTimeline.first);
+    }
   }
 
-  void showSteinSession(BuildContext context) {
-    final nodes = steinSession.toList();
-    if (nodes.isEmpty) {
-      SmartDialog.showToast('暂无互动记录');
-      return;
-    }
-    PageUtils.showVideoBottomSheet(
-      context,
-      child: Column(
-        children: [
-          const SizedBox(height: 12),
-          const Text(
-            '互动回溯',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: ListView.builder(
-              itemCount: nodes.length,
-              itemBuilder: (context, index) {
-                final node = nodes[index];
-                return ListTile(
-                  dense: true,
-                  leading: Text('${index + 1}'),
-                  title: Text(
-                    node.title?.isNotEmpty == true
-                        ? node.title!
-                        : '节点 ${node.edgeId}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  onTap: () {
-                    Get.back();
-                    jumpToSteinNode(node);
-                  },
-                );
-              },
-            ),
-          ),
-          SafeArea(
-            top: false,
-            child: ListTile(
-              leading: const Icon(Icons.restart_alt),
-              title: const Text('重新开始'),
-              onTap: () {
-                Get.back();
-                restartStein();
-              },
-            ),
-          ),
-        ],
-      ),
-    );
+  void toggleSteinBar() {
+    if (!showSteinBack.value) return;
+    showSteinBar.value = !showSteinBar.value;
   }
 
   late bool continuePlayingPart = Pref.continuePlayingPart;
@@ -1468,7 +1439,10 @@ class VideoDetailController extends GetxController
         graphVersion = null;
         _steinInitialized = false;
         steinSession.clear();
+        steinTimeline.clear();
+        currentEdgeId = null;
         showSteinBack.value = false;
+        showSteinBar.value = false;
       }
       steinEdgeInfo = null;
       showSteinEdgeInfo.value = false;
