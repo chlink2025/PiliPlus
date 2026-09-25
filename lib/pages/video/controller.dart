@@ -1110,8 +1110,11 @@ class VideoDetailController extends GetxController
   int? currentEdgeId;
   Duration? _steinSeek;
 
-  Future<void> getSteinEdgeInfo([int? edgeId, int? cursor]) async {
-    steinEdgeInfo = null;
+  Future<void> getSteinEdgeInfo([
+    int? edgeId,
+    int? cursor,
+    int portal = 0,
+  ]) async {
     try {
       final res = await Request().get(
         '/x/stein/edgeinfo_v2',
@@ -1122,7 +1125,7 @@ class VideoDetailController extends GetxController
           'edge_id': ?edgeId,
           'delay': 0,
           'screen': plPlayerController.isFullScreen.value ? 6 : 5,
-          'portal': 1,
+          'portal': portal,
           'choices': '',
           'cursor': ?cursor,
         },
@@ -1131,6 +1134,10 @@ class VideoDetailController extends GetxController
         final info = EdgeInfoData.fromJson(res.data['data']);
         steinEdgeInfo = info;
         _recordSteinNode(info, edgeId, cursor);
+        if (info.edges?.questions?.firstOrNull?.choices?.isNotEmpty == true &&
+            plPlayerController.playerStatus.isCompleted) {
+          showSteinEdgeInfo.value = true;
+        }
       } else {
         if (kDebugMode) {
           debugPrint('getSteinEdgeInfo error: ${res.data['message']}');
@@ -1219,7 +1226,7 @@ class VideoDetailController extends GetxController
     } else if ((story.startPos ?? 0) > 0) {
       plPlayerController.seekTo(Duration(milliseconds: story.startPos!));
     }
-    getSteinEdgeInfo(story.id, story.cursor);
+    getSteinEdgeInfo(story.id, story.cursor, 1);
   }
 
   void restartStein() {
