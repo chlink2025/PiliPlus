@@ -1175,6 +1175,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     hasToasted = false;
     isSeeking.value = false;
     hideTaskControls();
+    makeHeartBeat(seekPosition.value, isManual: true);
   }
 
   final RxBool volumeIndicator = false.obs;
@@ -1461,7 +1462,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   }) {
     if (isLive ||
         !enableHeart ||
-        progress == 0 ||
+        (progress == 0 && !isManual) ||
         (playerStatus.isPaused && !isManual)) {
       return null;
     }
@@ -1481,12 +1482,12 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
 
     switch (type) {
       case .playing:
-        if (progress - _heartDuration >= 5) {
+        if (isManual || progress - _heartDuration >= 5) {
           _heartDuration = progress;
           return send();
         }
       case .status:
-        if (progress - _heartDuration >= 2) {
+        if (isManual || progress - _heartDuration >= 2) {
           _heartDuration = progress;
           return send();
         }

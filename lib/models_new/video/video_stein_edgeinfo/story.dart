@@ -1,24 +1,25 @@
 import 'package:PiliPlus/models_new/video/video_detail/episode.dart';
 
-class Choice extends BaseEpisodeItem {
-  String? option;
+class Story extends BaseEpisodeItem {
   int? cursor;
   int? isCurrent;
   int? startPos;
 
-  Choice({
+  Story({
     super.id,
     super.cid,
-    this.option,
+    super.title,
+    super.cover,
     this.cursor,
     this.isCurrent,
     this.startPos,
   });
 
-  factory Choice.fromJson(Map<String, dynamic> json) => Choice(
-    id: json['id'] as int?,
+  factory Story.fromJson(Map<String, dynamic> json) => Story(
+    id: json['edge_id'] as int?,
     cid: json['cid'] as int?,
-    option: json['option'] as String?,
+    title: json['title'] as String?,
+    cover: json['cover'] as String?,
     cursor: json['cursor'] as int?,
     isCurrent: json['is_current'] as int?,
     startPos: json['start_pos'] as int?,

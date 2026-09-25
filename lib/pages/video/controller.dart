@@ -33,6 +33,7 @@ import 'package:PiliPlus/models_new/video/video_detail/data.dart';
 import 'package:PiliPlus/models_new/video/video_detail/episode.dart' as ugc;
 import 'package:PiliPlus/models_new/video/video_detail/page.dart';
 import 'package:PiliPlus/models_new/video/video_pbp/data.dart';
+import 'package:PiliPlus/models_new/video/video_play_info/interaction.dart';
 import 'package:PiliPlus/models_new/video/video_play_info/subtitle.dart';
 import 'package:PiliPlus/models_new/video/video_stein_edgeinfo/data.dart';
 import 'package:PiliPlus/pages/audio/view.dart';
@@ -873,6 +874,12 @@ class VideoDetailController extends GetxController
         } else {
           defaultST = Duration(milliseconds: data.lastPlayTime);
         }
+        final timeLength = data.timeLength;
+        if (timeLength != null &&
+            defaultST! > Duration.zero &&
+            timeLength - defaultST!.inMilliseconds <= 1000) {
+          defaultST = Duration.zero;
+        }
       }
 
       if (!isUgc && !fromReset && plPlayerController.enablePgcSkip) {
@@ -1078,16 +1085,25 @@ class VideoDetailController extends GetxController
   int? graphVersion;
   EdgeInfoData? steinEdgeInfo;
   late final RxBool showSteinEdgeInfo = false.obs;
+  bool _steinInitialized = false;
+  bool _steinSwitched = false;
+  HistoryNode? _steinHistoryNode;
 
-  Future<void> getSteinEdgeInfo([int? edgeId]) async {
+  Future<void> getSteinEdgeInfo([int? edgeId, int? cursor]) async {
     steinEdgeInfo = null;
     try {
       final res = await Request().get(
         '/x/stein/edgeinfo_v2',
         queryParameters: {
+          'aid': aid,
           'bvid': bvid,
           'graph_version': graphVersion,
           'edge_id': ?edgeId,
+          'delay': 0,
+          'screen': plPlayerController.isFullScreen.value ? 6 : 5,
+          'portal': 1,
+          'choices': '',
+          'cursor': ?cursor,
         },
       );
       if (res.data['code'] == 0) {
@@ -1120,14 +1136,28 @@ class VideoDetailController extends GetxController
       // interactive video
       late final introCtr = Get.find<UgcIntroController>(tag: heroTag);
       if (isUgc && graphVersion == null) {
-        try {
-          if (introCtr.videoDetail.value.rights?.isSteinGate == 1) {
-            graphVersion = response.interaction?.graphVersion;
-            getSteinEdgeInfo();
-          }
-        } catch (e) {
-          if (kDebugMode) debugPrint('handle stein: $e');
+        final interaction = response.interaction;
+        final gv = interaction?.graphVersion;
+        if (interaction != null &&
+            ((gv != null && gv != 0) || interaction.isInteraction == 1)) {
+          graphVersion = gv;
+          _steinHistoryNode = interaction.historyNode;
         }
+      }
+      if (isUgc && graphVersion != null && !_steinInitialized) {
+        final historyNode = _steinHistoryNode;
+        final historyCid = historyNode?.cid;
+        if (!_steinSwitched &&
+            historyNode != null &&
+            historyCid != null &&
+            historyCid != 0 &&
+            historyCid != cid.value) {
+          _steinSwitched = true;
+          introCtr.onChangeEpisode(Part(cid: historyCid), isStein: true);
+          return;
+        }
+        _steinInitialized = true;
+        getSteinEdgeInfo(historyNode?.nodeId);
       }
 
       if (isUgc && continuePlayingPart) {
@@ -1139,7 +1169,7 @@ class VideoDetailController extends GetxController
             if (pages != null && pages.length > 1) {
               final index = pages.indexWhere((item) => item.cid == lastCid);
               if (index != -1) {
-                onAddItem(index);
+                introCtr.onChangeEpisode(pages[index]);
               }
             }
           } catch (_) {}
@@ -1303,6 +1333,9 @@ class VideoDetailController extends GetxController
       // interactive video
       if (!isStein) {
         graphVersion = null;
+        _steinInitialized = false;
+        _steinSwitched = false;
+        _steinHistoryNode = null;
       }
       steinEdgeInfo = null;
       showSteinEdgeInfo.value = false;

@@ -1580,7 +1580,10 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                                   item,
                                   isStein: true,
                                 );
-                                videoDetailController.getSteinEdgeInfo(item.id);
+                                videoDetailController.getSteinEdgeInfo(
+                                  item.id,
+                                  item.cursor,
+                                );
                               },
                               child: Text(item.option!),
                             );
