@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' show min;
 import 'dart:ui';
 
@@ -33,9 +34,9 @@ import 'package:PiliPlus/models_new/video/video_detail/data.dart';
 import 'package:PiliPlus/models_new/video/video_detail/episode.dart' as ugc;
 import 'package:PiliPlus/models_new/video/video_detail/page.dart';
 import 'package:PiliPlus/models_new/video/video_pbp/data.dart';
-import 'package:PiliPlus/models_new/video/video_play_info/interaction.dart';
 import 'package:PiliPlus/models_new/video/video_play_info/subtitle.dart';
 import 'package:PiliPlus/models_new/video/video_stein_edgeinfo/data.dart';
+import 'package:PiliPlus/models_new/video/video_stein_edgeinfo/session.dart';
 import 'package:PiliPlus/pages/audio/view.dart';
 import 'package:PiliPlus/pages/common/publish/publish_route.dart';
 import 'package:PiliPlus/pages/search/widgets/search_text.dart';
@@ -55,6 +56,7 @@ import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/services/download/download_service.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/connectivity_utils.dart';
+import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/extension/context_ext.dart';
 import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/extension/nested_scroll_ext.dart';
@@ -136,6 +138,7 @@ class VideoDetailController extends GetxController
   String? audioUrl;
   Duration? defaultST;
   Duration? playedTime;
+  Duration? _resumeDuration;
   String playedTimePos(bool hasParams) {
     final pos = playedTime?.inMilliseconds;
     if (pos != null && pos > 0) {
@@ -754,6 +757,12 @@ class VideoDetailController extends GetxController
       onInit: () {
         videoState.value = true;
         setSubtitle(vttSubtitlesIndex.value);
+        if (_resumeDuration case final resume?) {
+          _resumeDuration = null;
+          SmartDialog.showToast(
+            '已定位到 ${DurationUtils.formatDuration(resume.inSeconds)}',
+          );
+        }
       },
       width: firstVideo.width,
       height: firstVideo.height,
@@ -879,6 +888,9 @@ class VideoDetailController extends GetxController
             defaultST! > Duration.zero &&
             timeLength - defaultST!.inMilliseconds <= 1000) {
           defaultST = Duration.zero;
+        }
+        if (defaultST! > Duration.zero) {
+          _resumeDuration = defaultST;
         }
       }
 
@@ -1086,8 +1098,8 @@ class VideoDetailController extends GetxController
   EdgeInfoData? steinEdgeInfo;
   late final RxBool showSteinEdgeInfo = false.obs;
   bool _steinInitialized = false;
-  bool _steinSwitched = false;
-  HistoryNode? _steinHistoryNode;
+  final RxList<SteinNode> steinSession = <SteinNode>[].obs;
+  final RxBool showSteinBack = false.obs;
 
   Future<void> getSteinEdgeInfo([int? edgeId, int? cursor]) async {
     steinEdgeInfo = null;
@@ -1107,7 +1119,9 @@ class VideoDetailController extends GetxController
         },
       );
       if (res.data['code'] == 0) {
-        steinEdgeInfo = EdgeInfoData.fromJson(res.data['data']);
+        final info = EdgeInfoData.fromJson(res.data['data']);
+        steinEdgeInfo = info;
+        _recordSteinNode(info, edgeId, cursor);
       } else {
         if (kDebugMode) {
           debugPrint('getSteinEdgeInfo error: ${res.data['message']}');
@@ -1116,6 +1130,136 @@ class VideoDetailController extends GetxController
     } catch (e) {
       if (kDebugMode) debugPrint('getSteinEdgeInfo: $e');
     }
+  }
+
+  String _steinSessionKey() => 'bpx_interaction_$bvid';
+
+  void _loadSteinSession() {
+    steinSession.clear();
+    try {
+      final raw = GStorage.localCache.get(_steinSessionKey());
+      if (raw is String) {
+        final data = jsonDecode(raw);
+        if (data is Map && data['graph_version'] == graphVersion) {
+          final list = data['list'];
+          if (list is List) {
+            for (final e in list) {
+              if (e is Map) {
+                steinSession.add(
+                  SteinNode.fromJson(Map<String, dynamic>.from(e)),
+                );
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    showSteinBack.value = graphVersion != null;
+  }
+
+  void _saveSteinSession() {
+    try {
+      GStorage.localCache.put(
+        _steinSessionKey(),
+        jsonEncode({
+          'graph_version': graphVersion,
+          'list': steinSession.map((e) => e.toJson()).toList(),
+        }),
+      );
+    } catch (_) {}
+  }
+
+  void _recordSteinNode(EdgeInfoData info, int? edgeId, int? cursor) {
+    showSteinBack.value = info.noBacktracking != 1;
+    final nodeId = info.edgeId ?? edgeId;
+    final nodeCid = cid.value;
+    if (nodeId == null || nodeCid == 0) return;
+    if (steinSession.any((e) => e.edgeId == nodeId)) {
+      return;
+    }
+    steinSession.add(
+      SteinNode(
+        edgeId: nodeId,
+        cid: nodeCid,
+        title: info.title,
+        cursor: cursor,
+      ),
+    );
+    if (steinSession.length > 50) {
+      steinSession.removeAt(0);
+    }
+    _saveSteinSession();
+  }
+
+  Future<void> jumpToSteinNode(SteinNode node) async {
+    final targetCid = node.cid;
+    if (targetCid != null && targetCid != cid.value) {
+      try {
+        final introCtr = Get.find<UgcIntroController>(tag: heroTag);
+        await introCtr.onChangeEpisode(Part(cid: targetCid), isStein: true);
+      } catch (_) {}
+    }
+    getSteinEdgeInfo(node.edgeId, node.cursor);
+  }
+
+  void restartStein() {
+    if (steinSession.isEmpty) return;
+    jumpToSteinNode(steinSession.first);
+  }
+
+  void showSteinSession(BuildContext context) {
+    final nodes = steinSession.toList();
+    if (nodes.isEmpty) {
+      SmartDialog.showToast('暂无互动记录');
+      return;
+    }
+    PageUtils.showVideoBottomSheet(
+      context,
+      child: Column(
+        children: [
+          const SizedBox(height: 12),
+          const Text(
+            '互动回溯',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: ListView.builder(
+              itemCount: nodes.length,
+              itemBuilder: (context, index) {
+                final node = nodes[index];
+                return ListTile(
+                  dense: true,
+                  leading: Text('${index + 1}'),
+                  title: Text(
+                    node.title?.isNotEmpty == true
+                        ? node.title!
+                        : '节点 ${node.edgeId}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () {
+                    Get.back();
+                    jumpToSteinNode(node);
+                  },
+                );
+              },
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: ListTile(
+              leading: const Icon(Icons.restart_alt),
+              title: const Text('重新开始'),
+              onTap: () {
+                Get.back();
+                restartStein();
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   late bool continuePlayingPart = Pref.continuePlayingPart;
@@ -1141,23 +1285,12 @@ class VideoDetailController extends GetxController
         if (interaction != null &&
             ((gv != null && gv != 0) || interaction.isInteraction == 1)) {
           graphVersion = gv;
-          _steinHistoryNode = interaction.historyNode;
+          _loadSteinSession();
         }
       }
       if (isUgc && graphVersion != null && !_steinInitialized) {
-        final historyNode = _steinHistoryNode;
-        final historyCid = historyNode?.cid;
-        if (!_steinSwitched &&
-            historyNode != null &&
-            historyCid != null &&
-            historyCid != 0 &&
-            historyCid != cid.value) {
-          _steinSwitched = true;
-          introCtr.onChangeEpisode(Part(cid: historyCid), isStein: true);
-          return;
-        }
         _steinInitialized = true;
-        getSteinEdgeInfo(historyNode?.nodeId);
+        getSteinEdgeInfo();
       }
 
       if (isUgc && continuePlayingPart) {
@@ -1334,8 +1467,8 @@ class VideoDetailController extends GetxController
       if (!isStein) {
         graphVersion = null;
         _steinInitialized = false;
-        _steinSwitched = false;
-        _steinHistoryNode = null;
+        steinSession.clear();
+        showSteinBack.value = false;
       }
       steinEdgeInfo = null;
       showSteinEdgeInfo.value = false;

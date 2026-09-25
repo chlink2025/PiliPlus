@@ -5,6 +5,7 @@ import 'package:PiliPlus/models_new/video/video_stein_edgeinfo/story.dart';
 
 class EdgeInfoData {
   Edges? edges;
+  int? edgeId;
   String? title;
   List<Story>? storyList;
   int? isLeaf;
@@ -16,6 +17,7 @@ class EdgeInfoData {
 
   EdgeInfoData({
     this.edges,
+    this.edgeId,
     this.title,
     this.storyList,
     this.isLeaf,
@@ -30,6 +32,7 @@ class EdgeInfoData {
     edges: json['edges'] == null
         ? null
         : Edges.fromJson(json['edges'] as Map<String, dynamic>),
+    edgeId: json['edge_id'] as int?,
     title: json['title'] as String?,
     storyList: (json['story_list'] as List<dynamic>?)
         ?.map((e) => Story.fromJson(e as Map<String, dynamic>))

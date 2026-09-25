@@ -877,6 +877,23 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
           inAppFullScreen: true,
         ),
       ),
+
+      /// 互动回溯
+      BottomControlType.interactBack => Obx(
+        () => videoDetailController.showSteinBack.value
+            ? ComBtn(
+                width: widgetWidth,
+                height: 30,
+                tooltip: '互动回溯',
+                icon: const Icon(
+                  Icons.history,
+                  size: 22,
+                  color: Colors.white,
+                ),
+                onTap: () => videoDetailController.showSteinSession(context),
+              )
+            : const SizedBox.shrink(),
+      ),
     };
 
     final isNotFileSource = !plPlayerController.isFileSource;
@@ -896,6 +913,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       if (isNotFileSource && anySeason) .episode,
       if (flag) .fit,
       if (isNotFileSource) .aiTranslate,
+      if (isNotFileSource) .interactBack,
       .subtitle,
       .speed,
       if (isNotFileSource && flag) .qa,
