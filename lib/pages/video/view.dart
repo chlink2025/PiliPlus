@@ -1622,7 +1622,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                 ),
                 child: SteinTimelineBar(
                   timeline: timeline.toList(),
-                  currentEdgeId: videoDetailController.currentEdgeId,
+                  currentId: videoDetailController.steinCurrentId.value,
                   onJump: videoDetailController.jumpToStory,
                   onRestart: videoDetailController.restartStein,
                 ),

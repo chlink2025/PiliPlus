@@ -6,13 +6,13 @@ class SteinTimelineBar extends StatefulWidget {
   const SteinTimelineBar({
     super.key,
     required this.timeline,
-    required this.currentEdgeId,
+    required this.currentId,
     required this.onJump,
     required this.onRestart,
   });
 
   final List<Story> timeline;
-  final int? currentEdgeId;
+  final int? currentId;
   final ValueChanged<Story> onJump;
   final VoidCallback onRestart;
 
@@ -34,15 +34,27 @@ class _SteinTimelineBarState extends State<SteinTimelineBar> {
   @override
   void didUpdateWidget(covariant SteinTimelineBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.currentEdgeId != widget.currentEdgeId ||
+    if (oldWidget.currentId != widget.currentId ||
         oldWidget.timeline.length != widget.timeline.length) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrent());
     }
   }
 
+  int get _currentIndex {
+    if (widget.timeline.isEmpty) return -1;
+    final id = widget.currentId;
+    if (id != null) {
+      final i = widget.timeline.indexWhere((e) => e.id == id);
+      if (i >= 0) return i;
+    }
+    final i = widget.timeline.indexWhere((e) => e.isCurrent == 1);
+    if (i >= 0) return i;
+    return widget.timeline.length - 1;
+  }
+
   void _scrollToCurrent() {
     if (!_controller.hasClients) return;
-    final index = widget.timeline.indexWhere(_isCurrent);
+    final index = _currentIndex;
     if (index < 0) return;
     final offset = 72 + index * (_itemWidth + _itemSpacing);
     _controller.animateTo(
@@ -51,10 +63,6 @@ class _SteinTimelineBarState extends State<SteinTimelineBar> {
       curve: Curves.easeInOut,
     );
   }
-
-  bool _isCurrent(Story story) =>
-      story.isCurrent == 1 ||
-      (widget.currentEdgeId != null && story.id == widget.currentEdgeId);
 
   @override
   void dispose() {
@@ -65,6 +73,7 @@ class _SteinTimelineBarState extends State<SteinTimelineBar> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final currentIndex = _currentIndex;
     return Container(
       height: 92,
       decoration: const BoxDecoration(
@@ -81,7 +90,11 @@ class _SteinTimelineBarState extends State<SteinTimelineBar> {
           if (index == 0) {
             return _restartItem();
           }
-          return _storyItem(colorScheme, widget.timeline[index - 1]);
+          return _storyItem(
+            colorScheme,
+            widget.timeline[index - 1],
+            index - 1 == currentIndex,
+          );
         },
       ),
     );
@@ -108,8 +121,12 @@ class _SteinTimelineBarState extends State<SteinTimelineBar> {
     );
   }
 
-  Widget _storyItem(ColorScheme colorScheme, Story story) {
-    final current = _isCurrent(story);
+  Widget _storyItem(ColorScheme colorScheme, Story story, bool current) {
+    final cover = story.cover?.isNotEmpty == true
+        ? story.cover
+        : (story.cid != null
+              ? 'https://i0.hdslb.com/bfs/steins-gate/${story.cid}_screenshot.jpg'
+              : null);
     return InkWell(
       onTap: () => widget.onJump(story),
       borderRadius: BorderRadius.circular(6),
@@ -126,10 +143,10 @@ class _SteinTimelineBarState extends State<SteinTimelineBar> {
         child: Row(
           children: [
             NetworkImgLayer(
-              src: story.cover,
+              src: cover,
               width: 52,
               height: 52,
-              quality: 2,
+              quality: 100,
             ),
             const SizedBox(width: 6),
             Expanded(
