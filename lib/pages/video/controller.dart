@@ -1311,7 +1311,7 @@ class VideoDetailController extends GetxController
     } else if ((story.startPos ?? 0) > 0) {
       plPlayerController.seekTo(Duration(milliseconds: story.startPos!));
     }
-    getSteinEdgeInfo(edgeId: story.id, cursor: story.cursor, portal: 1);
+    getSteinEdgeInfo(edgeId: story.id);
   }
 
   void restartStein() {

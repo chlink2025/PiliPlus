@@ -7,12 +7,14 @@ class SteinTimelineBar extends StatefulWidget {
     super.key,
     required this.timeline,
     required this.currentId,
+    required this.currentCid,
     required this.onJump,
     required this.onRestart,
   });
 
   final List<Story> timeline;
   final int? currentId;
+  final int? currentCid;
   final ValueChanged<Story> onJump;
   final VoidCallback onRestart;
 
@@ -35,6 +37,7 @@ class _SteinTimelineBarState extends State<SteinTimelineBar> {
   void didUpdateWidget(covariant SteinTimelineBar oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.currentId != widget.currentId ||
+        oldWidget.currentCid != widget.currentCid ||
         oldWidget.timeline.length != widget.timeline.length) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrent());
     }
@@ -47,9 +50,12 @@ class _SteinTimelineBarState extends State<SteinTimelineBar> {
       final i = widget.timeline.indexWhere((e) => e.id == id);
       if (i >= 0) return i;
     }
-    final i = widget.timeline.indexWhere((e) => e.isCurrent == 1);
-    if (i >= 0) return i;
-    return widget.timeline.length - 1;
+    final cid = widget.currentCid;
+    if (cid != null) {
+      final i = widget.timeline.indexWhere((e) => e.cid == cid);
+      if (i >= 0) return i;
+    }
+    return widget.timeline.indexWhere((e) => e.isCurrent == 1);
   }
 
   void _scrollToCurrent() {
