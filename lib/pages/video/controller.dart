@@ -1109,12 +1109,15 @@ class VideoDetailController extends GetxController
   final RxBool showSteinBar = false.obs;
   int? currentEdgeId;
   Duration? _steinSeek;
+  bool _steinRestoreChecked = false;
+  Story? _lastSteinNode;
 
-  Future<void> getSteinEdgeInfo([
+  Future<void> getSteinEdgeInfo({
     int? edgeId,
     int? cursor,
     int portal = 0,
-  ]) async {
+    bool updateCurrent = true,
+  }) async {
     try {
       final res = await Request().get(
         '/x/stein/edgeinfo_v2',
@@ -1133,7 +1136,7 @@ class VideoDetailController extends GetxController
       if (res.data['code'] == 0) {
         final info = EdgeInfoData.fromJson(res.data['data']);
         steinEdgeInfo = info;
-        _recordSteinNode(info, edgeId, cursor);
+        _recordSteinNode(info, edgeId, cursor, updateCurrent);
         if (info.edges?.questions?.firstOrNull?.choices?.isNotEmpty == true &&
             plPlayerController.playerStatus.isCompleted) {
           showSteinEdgeInfo.value = true;
@@ -1151,12 +1154,20 @@ class VideoDetailController extends GetxController
   String _steinSessionKey() => 'bpx_interaction_$bvid';
 
   void _refreshSteinTimeline() {
-    final list = steinEdgeInfo?.storyList;
-    if (list != null && list.isNotEmpty) {
-      steinTimeline.assignAll(list);
-    } else {
-      steinTimeline.assignAll(steinSession);
+    final merged = <Story>[];
+    final seen = <int>{};
+    for (final s in steinSession) {
+      final id = s.id;
+      if (id != null && seen.add(id)) merged.add(s);
     }
+    final serverList = steinEdgeInfo?.storyList;
+    if (serverList != null) {
+      for (final s in serverList) {
+        final id = s.id;
+        if (id != null && seen.add(id)) merged.add(s);
+      }
+    }
+    steinTimeline.assignAll(merged);
     currentEdgeId = steinEdgeInfo?.edgeId;
     showSteinBack.value =
         graphVersion != null &&
@@ -1179,10 +1190,30 @@ class VideoDetailController extends GetxController
               }
             }
           }
+          final lastId = data['last_edge_id'];
+          if (lastId is int) {
+            _lastSteinNode = steinSession.firstWhereOrNull(
+              (e) => e.id == lastId,
+            );
+          }
         }
       }
     } catch (_) {}
+    _lastSteinNode ??= steinSession.lastOrNull;
     _refreshSteinTimeline();
+  }
+
+  void _maybePromptSteinRestore() {
+    if (_steinRestoreChecked) return;
+    _steinRestoreChecked = true;
+    final last = _lastSteinNode;
+    if (last == null || last.cid == null || last.cid == cid.value) return;
+    plPlayerController.showPlayerTip(
+      '你有最近观看的进度',
+      actionText: '查看',
+      duration: const Duration(seconds: 5),
+      onAction: () => jumpToStory(last),
+    );
   }
 
   void _saveSteinSession() {
@@ -1191,26 +1222,38 @@ class VideoDetailController extends GetxController
         _steinSessionKey(),
         jsonEncode({
           'graph_version': graphVersion,
+          'last_edge_id': _lastSteinNode?.id,
           'list': steinSession.map((e) => e.toJson()).toList(),
         }),
       );
     } catch (_) {}
   }
 
-  void _recordSteinNode(EdgeInfoData info, int? edgeId, int? cursor) {
+  void _recordSteinNode(
+    EdgeInfoData info,
+    int? edgeId,
+    int? cursor,
+    bool updateCurrent,
+  ) {
     final nodeId = info.edgeId ?? edgeId;
     final nodeCid = cid.value;
-    if (nodeId != null &&
-        nodeCid != 0 &&
-        !steinSession.any((e) => e.id == nodeId)) {
-      steinSession.add(
-        Story(id: nodeId, cid: nodeCid, title: info.title, cursor: cursor),
-      );
+    if (nodeId == null || nodeCid == 0) return;
+    final node = Story(
+      id: nodeId,
+      cid: nodeCid,
+      title: info.title,
+      cursor: cursor,
+    );
+    if (updateCurrent) {
+      _lastSteinNode = node;
+    }
+    if (!steinSession.any((e) => e.id == nodeId)) {
+      steinSession.add(node);
       if (steinSession.length > 50) {
         steinSession.removeAt(0);
       }
-      _saveSteinSession();
     }
+    _saveSteinSession();
     _refreshSteinTimeline();
   }
 
@@ -1226,7 +1269,7 @@ class VideoDetailController extends GetxController
     } else if ((story.startPos ?? 0) > 0) {
       plPlayerController.seekTo(Duration(milliseconds: story.startPos!));
     }
-    getSteinEdgeInfo(story.id, story.cursor, 1);
+    getSteinEdgeInfo(edgeId: story.id, cursor: story.cursor, portal: 1);
   }
 
   void restartStein() {
@@ -1264,11 +1307,12 @@ class VideoDetailController extends GetxController
             ((gv != null && gv != 0) || interaction.isInteraction == 1)) {
           graphVersion = gv;
           _loadSteinSession();
+          _maybePromptSteinRestore();
         }
       }
       if (isUgc && graphVersion != null && !_steinInitialized) {
         _steinInitialized = true;
-        getSteinEdgeInfo();
+        getSteinEdgeInfo(updateCurrent: false);
       }
 
       if (isUgc && continuePlayingPart) {
@@ -1445,6 +1489,8 @@ class VideoDetailController extends GetxController
       if (!isStein) {
         graphVersion = null;
         _steinInitialized = false;
+        _steinRestoreChecked = false;
+        _lastSteinNode = null;
         steinSession.clear();
         steinTimeline.clear();
         currentEdgeId = null;

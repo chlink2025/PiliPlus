@@ -150,17 +150,33 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   Timer? _timer;
   StreamSubscription? _subForSeek;
 
-  final RxBool resumeTipVisible = false.obs;
-  final RxString resumeTipText = ''.obs;
-  Timer? _resumeTipTimer;
+  final RxBool playerTipVisible = false.obs;
+  final RxString playerTipText = ''.obs;
+  final RxString playerTipAction = ''.obs;
+  VoidCallback? playerTipOnAction;
+  Timer? _playerTipTimer;
 
-  void showResumeTip(String text) {
-    resumeTipText.value = text;
-    resumeTipVisible.value = true;
-    _resumeTipTimer?.cancel();
-    _resumeTipTimer = Timer(const Duration(seconds: 3), () {
-      resumeTipVisible.value = false;
+  void showPlayerTip(
+    String text, {
+    String? actionText,
+    VoidCallback? onAction,
+    Duration duration = const Duration(seconds: 3),
+  }) {
+    playerTipText.value = text;
+    playerTipAction.value = actionText ?? '';
+    playerTipOnAction = onAction;
+    playerTipVisible.value = true;
+    _playerTipTimer?.cancel();
+    _playerTipTimer = Timer(duration, () {
+      playerTipVisible.value = false;
     });
+  }
+
+  void showResumeTip(String text) => showPlayerTip(text);
+
+  void hidePlayerTip() {
+    _playerTipTimer?.cancel();
+    playerTipVisible.value = false;
   }
 
   Box setting = GStorage.setting;
@@ -1577,7 +1593,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
       AndroidHelper$ToDart.onUserLeaveHint = null;
     }
     _timer?.cancel();
-    _resumeTipTimer?.cancel();
+    _playerTipTimer?.cancel();
     // _position.close();
     // _playerEventSubs?.cancel();
     // _sliderPosition.close();

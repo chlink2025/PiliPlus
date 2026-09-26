@@ -1610,15 +1610,18 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
           ),
         ),
 
-        /// 续播定位提示
-        Obx(
-          () => IgnorePointer(
-            ignoring: true,
+        /// 播放器内提示（续播定位/互动历史等）
+        Obx(() {
+          final action = plPlayerController.playerTipAction.value;
+          final interactive =
+              action.isNotEmpty && plPlayerController.playerTipVisible.value;
+          return IgnorePointer(
+            ignoring: !interactive,
             child: Align(
               alignment: Alignment.bottomLeft,
               child: AnimatedOpacity(
                 curve: Curves.easeInOut,
-                opacity: plPlayerController.resumeTipVisible.value ? 1.0 : 0.0,
+                opacity: plPlayerController.playerTipVisible.value ? 1.0 : 0.0,
                 duration: const Duration(milliseconds: 150),
                 child: Padding(
                   padding: EdgeInsets.only(
@@ -1627,26 +1630,60 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                   ),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 5,
+                      horizontal: 10,
+                      vertical: 6,
                     ),
                     decoration: const BoxDecoration(
                       color: Color(0x88000000),
                       borderRadius: BorderRadius.all(Radius.circular(64)),
                     ),
-                    child: Text(
-                      plPlayerController.resumeTipText.value,
-                      style: const TextStyle(
-                        fontSize: 13.0,
-                        color: Colors.white,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          plPlayerController.playerTipText.value,
+                          style: const TextStyle(
+                            fontSize: 13.0,
+                            color: Colors.white,
+                          ),
+                        ),
+                        if (action.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              final onAction =
+                                  plPlayerController.playerTipOnAction;
+                              plPlayerController.hidePlayerTip();
+                              onAction?.call();
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primary,
+                                borderRadius: BorderRadius.circular(64),
+                              ),
+                              child: Text(
+                                action,
+                                style: const TextStyle(
+                                  fontSize: 12.0,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ),
+          );
+        }),
 
         // 头部、底部控制条
         Positioned.fill(
