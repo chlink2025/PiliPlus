@@ -1095,20 +1095,35 @@ class VideoDetailController extends GetxController
   int? graphVersion;
   EdgeInfoData? steinEdgeInfo;
   late final RxBool showSteinEdgeInfo = false.obs;
+  bool _steinInitialized = false;
 
-  Future<void> getSteinEdgeInfo([int? edgeId]) async {
-    steinEdgeInfo = null;
+  Future<void> getSteinEdgeInfo({
+    int? edgeId,
+    int? cursor,
+    int portal = 0,
+  }) async {
     try {
       final res = await Request().get(
         '/x/stein/edgeinfo_v2',
         queryParameters: {
+          'aid': aid,
           'bvid': bvid,
           'graph_version': graphVersion,
           'edge_id': ?edgeId,
+          'delay': 0,
+          'screen': plPlayerController.isFullScreen.value ? 6 : 5,
+          'portal': portal,
+          'choices': '',
+          'cursor': ?cursor,
         },
       );
       if (res.data['code'] == 0) {
-        steinEdgeInfo = EdgeInfoData.fromJson(res.data['data']);
+        final info = EdgeInfoData.fromJson(res.data['data']);
+        steinEdgeInfo = info;
+        if (info.edges?.questions?.firstOrNull?.choices?.isNotEmpty == true &&
+            plPlayerController.playerStatus.isCompleted) {
+          showSteinEdgeInfo.value = true;
+        }
       } else {
         if (kDebugMode) {
           debugPrint('getSteinEdgeInfo error: ${res.data['message']}');
@@ -1137,14 +1152,16 @@ class VideoDetailController extends GetxController
       // interactive video
       late final introCtr = Get.find<UgcIntroController>(tag: heroTag);
       if (isUgc && graphVersion == null) {
-        try {
-          if (introCtr.videoDetail.value.rights?.isSteinGate == 1) {
-            graphVersion = response.interaction?.graphVersion;
-            getSteinEdgeInfo();
-          }
-        } catch (e) {
-          if (kDebugMode) debugPrint('handle stein: $e');
+        final interaction = response.interaction;
+        final gv = interaction?.graphVersion;
+        if (interaction != null &&
+            ((gv != null && gv != 0) || interaction.isInteraction == 1)) {
+          graphVersion = gv;
         }
+      }
+      if (isUgc && graphVersion != null && !_steinInitialized) {
+        _steinInitialized = true;
+        getSteinEdgeInfo();
       }
 
       if (isUgc && continuePlayingPart) {
@@ -1320,6 +1337,7 @@ class VideoDetailController extends GetxController
       // interactive video
       if (!isStein) {
         graphVersion = null;
+        _steinInitialized = false;
       }
       steinEdgeInfo = null;
       showSteinEdgeInfo.value = false;

@@ -1,10 +1,12 @@
 class Interaction {
   HistoryNode? historyNode;
   int? graphVersion;
+  int? isInteraction;
 
   Interaction({
     this.historyNode,
     this.graphVersion,
+    this.isInteraction,
   });
 
   factory Interaction.fromJson(Map<String, dynamic> json) => Interaction(
@@ -12,6 +14,7 @@ class Interaction {
         ? null
         : HistoryNode.fromJson(json["history_node"]),
     graphVersion: json["graph_version"],
+    isInteraction: json["is_interaction"],
   );
 }
 
