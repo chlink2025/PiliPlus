@@ -150,6 +150,35 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   Timer? _timer;
   StreamSubscription? _subForSeek;
 
+  final RxBool playerTipVisible = false.obs;
+  final RxString playerTipText = ''.obs;
+  final RxString playerTipAction = ''.obs;
+  VoidCallback? playerTipOnAction;
+  Timer? _playerTipTimer;
+
+  void showPlayerTip(
+    String text, {
+    String? actionText,
+    VoidCallback? onAction,
+    Duration duration = const Duration(seconds: 3),
+  }) {
+    playerTipText.value = text;
+    playerTipAction.value = actionText ?? '';
+    playerTipOnAction = onAction;
+    playerTipVisible.value = true;
+    _playerTipTimer?.cancel();
+    _playerTipTimer = Timer(duration, () {
+      playerTipVisible.value = false;
+    });
+  }
+
+  void showResumeTip(String text) => showPlayerTip(text);
+
+  void hidePlayerTip() {
+    _playerTipTimer?.cancel();
+    playerTipVisible.value = false;
+  }
+
   Box setting = GStorage.setting;
 
   // final Durations durations;
@@ -1175,6 +1204,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     hasToasted = false;
     isSeeking.value = false;
     hideTaskControls();
+    makeHeartBeat(seekPosition.value, isManual: true);
   }
 
   final RxBool volumeIndicator = false.obs;
@@ -1461,7 +1491,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   }) {
     if (isLive ||
         !enableHeart ||
-        progress == 0 ||
+        (progress == 0 && !isManual) ||
         (playerStatus.isPaused && !isManual)) {
       return null;
     }
@@ -1481,12 +1511,12 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
 
     switch (type) {
       case .playing:
-        if (progress - _heartDuration >= 5) {
+        if (isManual || progress - _heartDuration >= 5) {
           _heartDuration = progress;
           return send();
         }
       case .status:
-        if (progress - _heartDuration >= 2) {
+        if (isManual || progress - _heartDuration >= 2) {
           _heartDuration = progress;
           return send();
         }
@@ -1563,6 +1593,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
       AndroidHelper$ToDart.onUserLeaveHint = null;
     }
     _timer?.cancel();
+    _playerTipTimer?.cancel();
     // _position.close();
     // _playerEventSubs?.cancel();
     // _sliderPosition.close();

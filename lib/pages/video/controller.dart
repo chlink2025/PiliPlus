@@ -54,6 +54,7 @@ import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/services/download/download_service.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/connectivity_utils.dart';
+import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/extension/context_ext.dart';
 import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/extension/nested_scroll_ext.dart';
@@ -135,6 +136,7 @@ class VideoDetailController extends GetxController
   String? audioUrl;
   Duration? defaultST;
   Duration? playedTime;
+  Duration? _resumeDuration;
   String playedTimePos(bool hasParams) {
     final pos = playedTime?.inMilliseconds;
     if (pos != null && pos > 0) {
@@ -753,6 +755,12 @@ class VideoDetailController extends GetxController
       onInit: () {
         videoState.value = true;
         setSubtitle(vttSubtitlesIndex.value);
+        if (_resumeDuration case final resume?) {
+          _resumeDuration = null;
+          plPlayerController.showResumeTip(
+            '已定位到 ${DurationUtils.formatDuration(resume.inSeconds)}',
+          );
+        }
       },
       width: firstVideo.width,
       height: firstVideo.height,
@@ -872,6 +880,15 @@ class VideoDetailController extends GetxController
           defaultST = Duration(milliseconds: progress);
         } else {
           defaultST = Duration(milliseconds: data.lastPlayTime);
+        }
+        final timeLength = data.timeLength;
+        if (timeLength != null &&
+            defaultST! > Duration.zero &&
+            timeLength - defaultST!.inMilliseconds <= 1000) {
+          defaultST = Duration.zero;
+        }
+        if (defaultST! > Duration.zero) {
+          _resumeDuration = defaultST;
         }
       }
 
@@ -1139,7 +1156,7 @@ class VideoDetailController extends GetxController
             if (pages != null && pages.length > 1) {
               final index = pages.indexWhere((item) => item.cid == lastCid);
               if (index != -1) {
-                onAddItem(index);
+                introCtr.onChangeEpisode(pages[index]);
               }
             }
           } catch (_) {}
