@@ -30,12 +30,14 @@ import 'package:re_highlight/languages/all.dart';
 import 'package:re_highlight/re_highlight.dart';
 import 'package:re_highlight/styles/github-dark.dart';
 import 'package:re_highlight/styles/github.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 
 class OpusContent extends StatelessWidget {
   final List<ArticleContentModel> opus;
   final ValueGetter<List<SourceModel>> images;
   final double maxWidth;
   final String opusId;
+  final ListController listController;
 
   const OpusContent({
     super.key,
@@ -43,6 +45,7 @@ class OpusContent extends StatelessWidget {
     required this.images,
     required this.maxWidth,
     required this.opusId,
+    required this.listController,
   });
 
   static InlineSpan _node2Widget({
@@ -207,11 +210,9 @@ class OpusContent extends StatelessWidget {
 
     late final highlight = Highlight()..registerLanguages(builtinAllLanguages);
 
-    return SliverList.separated(
-      itemCount: opus.length,
-      itemBuilder: (context, index) {
-        final element = opus[index];
-        try {
+    Widget Function(BuildContext, int) itemBuilder = (context, index) {
+      final element = opus[index];
+      try {
           switch (element.paraType) {
             case 1 || 4:
               final isQuote = element.paraType == 4;
@@ -715,6 +716,7 @@ class OpusContent extends StatelessWidget {
               );
             case 8 when (element.heading?.nodes?.isNotEmpty == true):
               return Text.rich(
+                textAlign: element.align == 1 ? TextAlign.center : null,
                 TextSpan(
                   children: element.heading!.nodes!
                       .map(
@@ -763,8 +765,17 @@ class OpusContent extends StatelessWidget {
             ),
           );
         }
+    };
+
+    return SuperSliverList.builder(
+      listController: listController,
+      itemCount: opus.length,
+      itemBuilder: (context, index) {
+        final child = itemBuilder(context, index);
+        return index == opus.length - 1
+            ? child
+            : Padding(padding: const .only(bottom: 10), child: child);
       },
-      separatorBuilder: (context, index) => const SizedBox(height: 10),
     );
   }
 }

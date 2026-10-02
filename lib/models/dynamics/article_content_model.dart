@@ -4,6 +4,21 @@ import 'package:PiliPlus/models/dynamics/vote_model.dart';
 import 'package:PiliPlus/utils/color_utils.dart';
 import 'package:PiliPlus/utils/parse_int.dart';
 
+/// 文章内目录(H1/H2/H3 大纲)的单项
+class OpusTocItem {
+  final int level;
+  final String title;
+
+  /// 对应段落(paragraph)在 opus 列表中的下标
+  final int anchorIndex;
+
+  const OpusTocItem({
+    required this.level,
+    required this.title,
+    required this.anchorIndex,
+  });
+}
+
 class ArticleContentModel {
   int? align;
   int? paraType;
@@ -81,13 +96,20 @@ class Format {
 class Text {
   Text({
     this.nodes,
+    this.level,
   });
   List<Node>? nodes;
+
+  // 标题段落(heading)的层级，H1/H2/H3 对应 1/2/3
+  int? level;
 
   Text.fromJson(Map<String, dynamic> json) {
     nodes = (json['nodes'] as List?)
         ?.map((item) => Node.fromJson(item))
         .toList();
+    level = json['level'] is int
+        ? json['level'] as int
+        : int.tryParse('${json['level']}');
   }
 }
 

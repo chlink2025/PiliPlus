@@ -4,7 +4,7 @@ import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models/common/image_preview_type.dart';
 import 'package:PiliPlus/models/dynamics/article_content_model.dart'
-    show ArticleContentModel;
+    show ArticleContentModel, OpusTocItem;
 import 'package:PiliPlus/models/dynamics/result.dart';
 import 'package:PiliPlus/models/model_avatar.dart';
 import 'package:PiliPlus/models_new/article/article_view/data.dart';
@@ -14,8 +14,10 @@ import 'package:PiliPlus/utils/app_scheme.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/url_utils.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 
 class ArticleController extends CommonDynController {
   late String id;
@@ -42,6 +44,13 @@ class ArticleController extends CommonDynController {
 
   List<ArticleContentModel>? get opus =>
       opusData?.modules.moduleContent ?? articleData?.opus?.content;
+
+  /// opus 正文列表的控制器，用于目录跳转
+  final listController = ListController();
+
+  List<OpusTocItem>? _tocList;
+  List<OpusTocItem>? get tocList => _tocList;
+  final RxBool hasToc = false.obs;
 
   List<SourceModel>? _images;
   List<SourceModel> images() => _images ??= opus!
@@ -172,11 +181,62 @@ class ArticleController extends CommonDynController {
       isLoaded.value = await queryRead(commentId);
     }
     if (isLoaded.value) {
+      _buildToc();
       queryData();
       if (Accounts.heartbeat.isLogin && !Pref.historyPause) {
         VideoHttp.historyReport(aid: commentId, type: 5);
       }
     }
+  }
+
+  // 从 opus 正文段落中提取标题(H1/H2/H3)生成文章目录
+  void _buildToc() {
+    final content = opus;
+    if (content == null || content.isEmpty) {
+      _tocList = null;
+      hasToc.value = false;
+      return;
+    }
+    final list = <OpusTocItem>[];
+    for (int i = 0; i < content.length; i++) {
+      final element = content[i];
+      if (element.paraType != 8) continue;
+      final heading = element.heading;
+      final nodes = heading?.nodes;
+      if (nodes == null || nodes.isEmpty) continue;
+      final title = nodes
+          .map((e) => e.word?.words ?? e.rich?.text ?? '')
+          .join()
+          .trim();
+      if (title.isEmpty) continue;
+      list.add(
+        OpusTocItem(
+          level: heading?.level ?? 1,
+          title: title,
+          anchorIndex: i,
+        ),
+      );
+    }
+    _tocList = list.isEmpty ? null : list;
+    hasToc.value = list.isNotEmpty;
+  }
+
+  // 目录点击跳转到对应段落
+  void jumpToToc(int anchorIndex) {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      try {
+        final offset = listController.getOffsetToReveal(anchorIndex, 0.0);
+        if (offset.isFinite && scrollController.hasClients) {
+          scrollController.jumpTo(offset);
+        }
+      } catch (_) {}
+    });
+  }
+
+  @override
+  void onClose() {
+    listController.dispose();
+    super.onClose();
   }
 
   Future<void> onFav() async {

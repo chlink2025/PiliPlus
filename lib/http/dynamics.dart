@@ -378,7 +378,7 @@ abstract final class DynamicsHttp {
       Api.opusDetail,
       queryParameters: await WbiSign.makSign({
         'timezone_offset': '-480',
-        'features': 'htmlNewStyle',
+        'features': Constants.opusDetailFeatures,
         'id': opusId,
       }),
     );

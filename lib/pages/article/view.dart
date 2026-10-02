@@ -17,6 +17,7 @@ import 'package:PiliPlus/pages/article/controller.dart';
 import 'package:PiliPlus/pages/article/widgets/article_ops.dart';
 import 'package:PiliPlus/pages/article/widgets/html_render.dart';
 import 'package:PiliPlus/pages/article/widgets/opus_content.dart';
+import 'package:PiliPlus/pages/article/widgets/opus_toc_sheet.dart';
 import 'package:PiliPlus/pages/common/dyn/common_dyn_page.dart';
 import 'package:PiliPlus/pages/dynamics_repost/view.dart';
 import 'package:PiliPlus/utils/date_utils.dart';
@@ -78,6 +79,7 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage> {
         padding: .symmetric(horizontal: padding),
         child: SelectionArea(
           child: CustomScrollView(
+            controller: controller.scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               _buildContent(
@@ -111,6 +113,7 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage> {
           flex: flex,
           child: SelectionArea(
             child: CustomScrollView(
+              controller: controller.scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 SliverPadding(
@@ -169,6 +172,7 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage> {
               images: controller.images,
               maxWidth: maxWidth,
               opusId: controller.id,
+              listController: controller.listController,
             );
           } else if (controller.opusData?.modules.moduleBlocked
               case final moduleBlocked?) {
@@ -331,9 +335,38 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage> {
     ],
   );
 
+  // 左下角目录入口
+  Widget _buildTocFab({double extraBottom = 0, double extraLeft = 0}) {
+    return Obx(() {
+      if (!controller.hasToc.value) {
+        return const SizedBox.shrink();
+      }
+      return Padding(
+        padding: .only(
+          left: kFloatingActionButtonMargin + extraLeft,
+          bottom: kFloatingActionButtonMargin + extraBottom,
+        ),
+        child: FloatingActionButton.small(
+          heroTag: null,
+          elevation: 1,
+          tooltip: '目录',
+          onPressed: () => showOpusTocSheet(context, controller),
+          child: const Icon(Icons.format_list_bulleted, size: 20),
+        ),
+      );
+    });
+  }
+
   Widget _buildBottom() {
     if (!controller.showDynActionBar) {
-      return fabButton;
+      return Row(
+        mainAxisAlignment: .spaceBetween,
+        crossAxisAlignment: .end,
+        children: [
+          _buildTocFab(extraBottom: padding.bottom, extraLeft: padding.left),
+          fabButton,
+        ],
+      );
     }
 
     late final primary = theme.colorScheme.primary;
@@ -360,7 +393,14 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage> {
         );
 
         if (stats == null) {
-          return Align(alignment: .bottomRight, child: fab);
+          return Row(
+            mainAxisAlignment: .spaceBetween,
+            crossAxisAlignment: .end,
+            children: [
+              _buildTocFab(extraBottom: padding.bottom),
+              fab,
+            ],
+          );
         }
 
         Widget textIconButton({
@@ -392,7 +432,11 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage> {
           mainAxisSize: .min,
           crossAxisAlignment: .end,
           children: [
-            fab,
+            Row(
+              mainAxisAlignment: .spaceBetween,
+              crossAxisAlignment: .end,
+              children: [_buildTocFab(), fab],
+            ),
             Container(
               decoration: BoxDecoration(
                 color: theme.colorScheme.surface,
