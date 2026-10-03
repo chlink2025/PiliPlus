@@ -4,7 +4,7 @@ import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models/common/image_preview_type.dart';
 import 'package:PiliPlus/models/dynamics/article_content_model.dart'
-    show ArticleContentModel, OpusTocItem;
+    show ArticleContentModel, OpusTocItem, Pic;
 import 'package:PiliPlus/models/dynamics/result.dart';
 import 'package:PiliPlus/models/model_avatar.dart';
 import 'package:PiliPlus/models_new/article/article_view/data.dart';
@@ -60,6 +60,18 @@ class ArticleController extends CommonDynController {
       .where((e) => e.paraType == 2 && e.pic != null)
       .map((e) => SourceModel(url: e.pic!.pics!.first.url!))
       .toList();
+
+  /// 文集信息：opus 路径取 module_collection，read 路径取 /x/article/view 的 list
+  ModuleCollection? get collection =>
+      opusData?.modules.moduleCollection ?? articleData?.collection;
+
+  /// opus 文首封面(服务端已带真实宽高)
+  List<Pic>? get opusCoverPics =>
+      opusData?.modules.moduleTop?.display?.album?.pics;
+
+  /// read 文首封面(仅有 URL，由 ArticleCoverGallery 解析真实宽高)
+  List<String>? get readCoverUrls =>
+      opusData == null ? articleData?.originImageUrls : null;
 
   @override
   void onInit() {

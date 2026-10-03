@@ -5,7 +5,9 @@ class ArticleOpus {
 
   ArticleOpus.fromJson(Map<String, dynamic> json) {
     if (json['content']?['paragraphs'] case List list) {
-      content = list.map((i) => ArticleContentModel.fromJson(i)).toList();
+      content = list
+          .map((i) => ArticleContentModel.fromJson(i, readSource: true))
+          .toList();
     }
   }
 }

@@ -1,20 +1,15 @@
 import 'dart:math';
 
-import 'package:PiliPlus/common/widgets/badge.dart';
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
-import 'package:PiliPlus/common/widgets/gesture/horizontal_drag_gesture_recognizer.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/scaffold/mini_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
-import 'package:PiliPlus/common/widgets/scroll_physics.dart'
-    show tabBarScrollPhysics;
 import 'package:PiliPlus/common/widgets/sliver/sliver_to_box_adapter.dart';
-import 'package:PiliPlus/models/common/image_preview_type.dart';
-import 'package:PiliPlus/models/dynamics/article_content_model.dart' show Pic;
 import 'package:PiliPlus/models/dynamics/result.dart' show DynamicStat;
 import 'package:PiliPlus/pages/article/controller.dart';
 import 'package:PiliPlus/pages/article/widgets/article_ops.dart';
+import 'package:PiliPlus/pages/article/widgets/cover_gallery.dart';
 import 'package:PiliPlus/pages/article/widgets/html_render.dart';
 import 'package:PiliPlus/pages/article/widgets/opus_content.dart';
 import 'package:PiliPlus/pages/article/widgets/opus_toc_sheet.dart';
@@ -22,14 +17,11 @@ import 'package:PiliPlus/pages/common/dyn/common_dyn_page.dart';
 import 'package:PiliPlus/pages/dynamics_repost/view.dart';
 import 'package:PiliPlus/utils/date_utils.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
-import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/grid.dart';
-import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/num_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/share_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
-import 'package:cached_network_image_ce/cached_network_image.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
@@ -215,12 +207,21 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage> {
             content = const SliverToBoxAdapter(child: Text('NULL'));
           }
 
+          final opusCoverPics = controller.opusCoverPics;
+          final readCoverUrls = controller.readCoverUrls;
+          final collection = controller.collection;
           return SliverMainAxisGroup(
             slivers: [
-              if (controller.type != 'read')
-                if (controller.opusData?.modules.moduleTop?.display?.album?.pics
-                    case final pics? when pics.isNotEmpty)
-                  SliverToBoxAdapter(child: _buildImageGallery(pics)),
+              if (opusCoverPics != null || readCoverUrls != null)
+                SliverToBoxAdapter(
+                  child: ArticleCoverGallery(
+                    pics: opusCoverPics,
+                    urls: readCoverUrls,
+                    maxWidth: maxWidth,
+                    maxHeight: maxHeight,
+                    topIndex: controller.topIndex,
+                  ),
+                ),
               if (controller.summary.title != null)
                 SliverToBoxWithVisibilityAdapter(
                   onVisibilityChanged: controller.showTitle.call,
@@ -230,14 +231,10 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage> {
                   ),
                 ),
               SliverToBoxAdapter(child: _buildAuthor()),
-              if (controller.type != 'read' &&
-                  controller.opusData?.modules.moduleCollection != null)
+              if (collection != null)
                 SliverToBoxAdapter(
                   child: SelectionContainer.disabled(
-                    child: opusCollection(
-                      theme,
-                      controller.opusData!.modules.moduleCollection!,
-                    ),
+                    child: opusCollection(theme, collection),
                   ),
                 ),
               content,
@@ -530,95 +527,6 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage> {
           ],
         );
       }),
-    );
-  }
-
-  Widget? _buildImageGallery(List<Pic> pics) {
-    final length = pics.length;
-    final first = pics.first;
-    double height;
-    if (first.height != null && first.width != null) {
-      final ratio = first.height! / first.width!;
-      height = min(maxWidth * ratio, maxHeight * 0.55);
-    } else {
-      height = maxHeight * 0.55;
-    }
-    return Stack(
-      clipBehavior: .none,
-      children: [
-        Container(
-          height: height,
-          width: maxWidth,
-          margin: const .only(bottom: 10),
-          child: PageView.builder(
-            physics: tabBarScrollPhysics,
-            horizontalDragGestureRecognizer:
-                CustomHorizontalDragGestureRecognizer.new,
-            onPageChanged: controller.topIndex.call,
-            itemCount: length,
-            itemBuilder: (context, index) {
-              final pic = pics[index];
-              int? memCacheWidth, memCacheHeight;
-              if (pic.isLongPic ?? false) {
-                memCacheWidth = maxWidth.cacheSize(context);
-              } else if (pic.width != null && pic.height != null) {
-                if (pic.width! > pic.height!) {
-                  memCacheWidth = maxWidth.cacheSize(
-                    context,
-                  );
-                } else {
-                  memCacheHeight = height.cacheSize(
-                    context,
-                  );
-                }
-              }
-              return GestureDetector(
-                behavior: .opaque,
-                onTap: () => PageUtils.imageView(
-                  quality: 60,
-                  imgList: pics.map((e) => SourceModel(url: e.url!)).toList(),
-                  initialPage: index,
-                ),
-                child: Hero(
-                  tag: pic.url!,
-                  child: Stack(
-                    clipBehavior: .none,
-                    alignment: Alignment.center,
-                    children: [
-                      CachedNetworkImage(
-                        height: height,
-                        width: maxWidth,
-                        memCacheWidth: memCacheWidth,
-                        memCacheHeight: memCacheHeight,
-                        fit: pic.isLongPic == true ? BoxFit.cover : null,
-                        imageUrl: ImageUtils.thumbnailUrl(pic.url, 60),
-                        fadeInDuration: const Duration(milliseconds: 120),
-                        fadeOutDuration: const Duration(milliseconds: 120),
-                        placeholder: (_, _) => const SizedBox.shrink(),
-                      ),
-                      if (pic.isLongPic == true)
-                        const PBadge(
-                          right: 12,
-                          bottom: 12,
-                          text: '长图',
-                          type: .primary,
-                        ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        Obx(
-          () => PBadge(
-            top: 12,
-            right: 12,
-            type: .gray,
-            text: '${controller.topIndex.value + 1}/$length',
-          ),
-        ),
-      ],
     );
   }
 

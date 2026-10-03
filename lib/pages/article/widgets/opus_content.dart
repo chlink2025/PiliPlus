@@ -963,7 +963,7 @@ Widget opusCollection(ThemeData theme, ModuleCollection item) {
                   mainAxisSize: .min,
                   crossAxisAlignment: .start,
                   children: [
-                    Text(item.title!),
+                    Text(item.title ?? ''),
                     Text.rich(
                       TextSpan(
                         children: [
@@ -976,7 +976,9 @@ Widget opusCollection(ThemeData theme, ModuleCollection item) {
                             ),
                           ),
                           TextSpan(
-                            text: '${item.name} · ${item.count}',
+                            text: item.count?.isNotEmpty == true
+                                ? '${item.name} · ${item.count}'
+                                : '${item.name ?? ''}',
                             style: TextStyle(
                               fontSize: 13,
                               color: theme.colorScheme.outline,

@@ -42,8 +42,7 @@ class _OpusTocSheet extends StatefulWidget {
 
 class _OpusTocSheetState extends State<_OpusTocSheet>
     with SingleTickerProviderStateMixin {
-  ModuleCollection? get _collection =>
-      widget.controller.opusData?.modules.moduleCollection;
+  ModuleCollection? get _collection => widget.controller.collection;
 
   late final List<_TocTab> _tabs = [
     _TocTab.toc,
@@ -53,7 +52,7 @@ class _OpusTocSheetState extends State<_OpusTocSheet>
   late final TabController _tabController;
 
   late final Future<List<ArticleListItemModel>?> _collectionFuture =
-      _collection == null
+      _collection?.id == null
       ? Future<List<ArticleListItemModel>?>.value(null)
       : DynamicsHttp.articleList(id: _collection!.id!).then(
           (res) => res.dataOrNull?.articles,

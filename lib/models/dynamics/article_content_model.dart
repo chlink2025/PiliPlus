@@ -31,11 +31,24 @@ class ArticleContentModel {
   L1st? list;
   Text? heading;
 
-  ArticleContentModel.fromJson(Map<String, dynamic> json) {
+  /// /x/article/view(read 路径)使用官方 gRPC 段落枚举，与 web opus 详情不同：
+  /// 6=无序列表 7=链接卡 8=代码 9=标题 10=表格。这里归一化到 web 枚举。
+  static int? mapReadParaType(int? type) => switch (type) {
+    6 => 5, // UNSORTED_LIST -> list
+    7 => 6, // LINK_CARD
+    8 => 7, // CODE
+    9 => 8, // HEADING
+    _ => type,
+  };
+
+  ArticleContentModel.fromJson(
+    Map<String, dynamic> json, {
+    bool readSource = false,
+  }) {
+    format = json['format'] == null ? null : Format.fromJson(json['format']);
     align = json['align'];
     paraType = json['para_type'];
     text = json['text'] == null ? null : Text.fromJson(json['text']);
-    format = json['format'] == null ? null : Format.fromJson(json['format']);
     line = json['line'] == null ? null : Line.fromJson(json['line']);
     pic = json['pic'] == null ? null : Pic.fromJson(json['pic']);
     linkCard = json['link_card'] == null
@@ -44,6 +57,23 @@ class ArticleContentModel {
     code = json['code'] == null ? null : Code.fromJson(json['code']);
     list = json['list'] == null ? null : L1st.fromJson(json['list']);
     heading = json['heading'] == null ? null : Text.fromJson(json['heading']);
+
+    if (readSource) {
+      align ??= format?.align;
+      final rawType = json['para_type'];
+      paraType = mapReadParaType(rawType);
+      if (rawType == 9) {
+        if (heading == null && text?.nodes?.isNotEmpty == true) {
+          // read 的标题内容在 text 中，层级在 format.heading_type
+          heading = text;
+          heading!.level ??= format?.headingType;
+          text = null;
+        } else if (heading?.nodes?.isNotEmpty != true) {
+          // 空标题降级为普通文本，避免渲染“不支持的类型”
+          paraType = 1;
+        }
+      }
+    }
   }
 }
 
@@ -85,11 +115,16 @@ class Line {
 class Format {
   Format({
     this.align,
+    this.headingType,
   });
   int? align;
 
+  /// 标题层级(read 路径的 heading_type)，H1/H2/H3 对应 1/2/3
+  int? headingType;
+
   Format.fromJson(Map<String, dynamic> json) {
     align = json['align'];
+    headingType = safeToInt(json['heading_type'] ?? json['headingType']);
   }
 }
 
