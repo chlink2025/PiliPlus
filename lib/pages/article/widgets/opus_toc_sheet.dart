@@ -157,8 +157,6 @@ class _OpusTocSheetState extends State<_OpusTocSheet>
                 child: Text(
                   collection.name ?? '',
                   style: const TextStyle(fontWeight: .bold, fontSize: 15),
-                  maxLines: 1,
-                  overflow: .ellipsis,
                 ),
               ),
               if (collection.count?.isNotEmpty == true)
@@ -193,11 +191,7 @@ class _OpusTocSheetState extends State<_OpusTocSheet>
                       width: 24,
                       child: Text('${index + 1}'),
                     ),
-                    title: Text(
-                      item.title ?? '',
-                      maxLines: 1,
-                      overflow: .ellipsis,
-                    ),
+                    title: Text(item.title ?? ''),
                     onTap: () {
                       Navigator.of(context).pop();
                       final dynIdStr = item.dynIdStr;
